@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Финансовая аналитика и прогнозирование</title>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            background: #eef2f7;
+            font-family: "Segoe UI", Arial, sans-serif;
+            color: #333;
+            animation: fadeIn 0.8s ease;
+        }
+
+        @keyframes fadeIn { from {opacity: 0;} to {opacity: 1;} }
+
+        header {
+            background: linear-gradient(135deg, #6a82fb, #504bff);
+            color: white;
+            padding: 40px;
+            text-align: center;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .tabs {
+            display: flex;
+            justify-content: center;
+            background: white;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+
+        .tab {
+            padding: 18px 35px;
+            cursor: pointer;
+            font-weight: bold;
+            color: #555;
+            transition: 0.3s;
+        }
+
+        .tab.active {
+            color: #504bff;
+            border-bottom: 4px solid #504bff;
+        }
+
+        .content {
+            width: 80%;
+            margin: 30px auto;
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            animation: slideUp 0.7s ease;
+        }
+
+        @keyframes slideUp {
+            from {transform: translateY(40px); opacity: 0;}
+            to {transform: translateY(0); opacity: 1;}
+        }
+
+        label { display: block; margin-top: 15px; font-weight: bold; }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            margin-top: 6px;
+            border-radius: 7px;
+            border: 1px solid #ccc;
+        }
+
+        button {
+            margin-top: 20px;
+            padding: 12px 26px;
+            background: #504bff;
+            color: white;
+            border: none;
+            border-radius: 9px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        button:hover { transform: scale(1.05); }
+
+        .row { display: flex; gap: 25px; margin-top: 20px; }
+
+        .box {
+            flex: 1;
+            background: #f5f6ff;
+            padding: 20px;
+            border-radius: 12px;
+        }
+
+        canvas {
+            max-width: 280px !important; /* уменьшенная диаграмма */
+            margin: auto;
+        }
+    </style>
+</head>
+<body>
+
+<header>Финансовая аналитика и прогнозирование расходов</header>
+
+<!-- Вкладки -->
+<div class="tabs">
+    <div class="tab active" onclick="openTab('analysis')">Анализ</div>
+    <div class="tab" onclick="openTab('forecast')">Прогноз</div>
+    <div class="tab" onclick="openTab('compare')">Сравнение аренды</div>
+</div>
+
+<!-- Контент вкладок -->
+<div id="analysis" class="content">
+    <h2>Анализ текущих расходов</h2>
+
+    <label>Аренда жилья (₸)</label>
+    <input type="number" id="rent">
+
+    <label>Продукты (₸)</label>
+    <input type="number" id="food">
+
+    <label>Транспорт (₸)</label>
+    <input type="number" id="transport">
+
+    <label>Коммунальные услуги (₸)</label>
+    <input type="number" id="utilities">
+
+    <label>Прочие расходы (₸)</label>
+    <input type="number" id="other">
+
+    <label>Расходы прошлого месяца (₸)</label>
+    <input type="number" id="lastMonth">
+
+    <button onclick="calculateAnalysis()">Рассчитать</button>
+
+    <div id="analysisResult"></div>
+    <canvas id="analysisChart"></canvas>
+</div>
+
+<div id="forecast" class="content" style="display:none;">
+    <h2>Прогноз расходов на 6 месяцев</h2>
+    <button onclick="buildForecast()">Построить прогноз</button>
+    <canvas id="forecastChart"></canvas>
+</div>
+
+<div id="compare" class="content" style="display:none;">
+    <h2>Сравнение аренды жилья по городам</h2>
+
+    <label>Выберите город</label>
+    <select id="citySelect" onchange="showRent()">
+        <option value="Алматы">Алматы</option>
+        <option value="Астана">Астана</option>
+        <option value="Шымкент">Шымкент</option>
+        <option value="Караганда">Караганда</option>
+        <option value="Актобе">Актобе</option>
+    </select>
+
+    <div id="cityRent" class="box" style="margin-top:20px;"></div>
+
+    <canvas id="cityChart"></canvas>
+</div>
+
+<script>
+/* Переключение вкладок */
+function openTab(id) {
+    document.querySelectorAll(".content").forEach(c => c.style.display = "none");
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+
+    document.getElementById(id).style.display = "block";
+    event.target.classList.add("active");
+}
+
+/* Диаграмма анализа */
+let analysisChart;
+
+function calculateAnalysis() {
+    let rent = Number(document.getElementById("rent").value);
+    let food = Number(document.getElementById("food").value);
+    let transport = Number(document.getElementById("transport").value);
+    let utilities = Number(document.getElementById("utilities").value);
+    let other = Number(document.getElementById("other").value);
+    let lastMonth = Number(document.getElementById("lastMonth").value);
+
+    let total = rent + food + transport + utilities + other;
+
+    let diff = total - lastMonth;
+    let status = diff > 0 ? "↑ выросли" : "↓ уменьшились";
+
+    document.getElementById("analysisResult").innerHTML = `
+        <h3>Итоги</h3>
+        Общие расходы: <b>${total.toLocaleString()} ₸</b><br>
+        Изменение к прошлому месяцу: <b>${diff.toLocaleString()} ₸</b> (${status})
+    `;
+
+    if (analysisChart) analysisChart.destroy();
+
+    analysisChart = new Chart(document.getElementById("analysisChart"), {
+        type: "doughnut",
+        data: {
+            labels: ["Аренда", "Продукты", "Транспорт", "Коммунальные", "Прочие"],
+            datasets: [{
+                data: [rent, food, transport, utilities, other],
+                backgroundColor: ["#6a82fb", "#7b8cff", "#9b72ff", "#7aa8ff", "#a4b8ff"]
+            }]
+        }
+    });
+}
+
+/* Прогноз 6 месяцев */
+let forecastChart;
+
+function buildForecast() {
+    let rent = Number(document.getElementById("rent").value);
+    let food = Number(document.getElementById("food").value);
+    let transport = Number(document.getElementById("transport").value);
+    let utilities = Number(document.getElementById("utilities").value);
+    let other = Number(document.getElementById("other").value);
+
+    let base = rent + food + transport + utilities + other;
+
+    let months = ["Текущий", "+1 мес", "+2 мес", "+3 мес", "+4 мес", "+5 мес"];
+    let values = [];
+
+    for (let i = 0; i < 6; i++) {
+        values.push(Math.round(base * Math.pow(1.05, i)));
+    }
+
+    if (forecastChart) forecastChart.destroy();
+
+    forecastChart = new Chart(document.getElementById("forecastChart"), {
+        type: "line",
+        data: {
+            labels: months,
+            datasets: [{
+                label: "Прогноз расходов",
+                data: values,
+                borderColor: "#504bff",
+                borderWidth: 3,
+                tension: 0.3
+            }]
+        }
+    });
+}
+
+/* Сравнение аренды по городам */
+let cityRents = {
+    "Алматы": 200000,
+    "Астана": 180000,
+    "Шымкент": 150000,
+    "Караганда": 120000,
+    "Актобе": 110000
+};
+
+let cityChart;
+
+function showRent() {
+    let city = document.getElementById("citySelect").value;
+
+    document.getElementById("cityRent").innerHTML =
+        `<b>${city}:</b> средняя аренда <b>${cityRents[city].toLocaleString()} ₸</b>`;
+
+    if (cityChart) cityChart.destroy();
+
+    cityChart = new Chart(document.getElementById("cityChart"), {
+        type: "bar",
+        data: {
+            labels: Object.keys(cityRents),
+            datasets: [{
+                label: "Стоимость аренды",
+                data: Object.values(cityRents),
+                backgroundColor: "#7a88ff"
+            }]
+        }
+    });
+}
+
+showRent(); // показать диаграмму при загрузке
+</script>
+
+</body>
+</html>
